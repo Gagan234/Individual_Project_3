@@ -182,21 +182,21 @@ fun MazeGrid(gridSize: Int, blockPosition: Pair<Int, Int>, goalPosition: Pair<In
 fun DropArea(commands: MutableList<String>) {
     val scrollState = rememberScrollState()
     LaunchedEffect(commands.size) {
-        // Automatically scroll to the bottom when a new command is added
+
         scrollState.animateScrollTo(scrollState.maxValue)
     }
 
     Box(
         Modifier
             .fillMaxWidth()
-            .height(150.dp) // Increased height to accommodate more commands
+            .height(150.dp)
             .background(Color.LightGray, RoundedCornerShape(8.dp))
             .padding(8.dp)
-            .verticalScroll(scrollState) // Enable scrolling
+            .verticalScroll(scrollState)
     ) {
         Column {
             Text("Drop Commands Here", modifier = Modifier.align(Alignment.CenterHorizontally))
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) { // Stack commands vertically
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 commands.forEach {
                     Text(it, modifier = Modifier.padding(4.dp))
                 }
@@ -323,7 +323,7 @@ suspend fun executeCommands(
 
             position = nextPosition
             updatePosition(position)
-            delay(300) // Adjust the delay for slower or faster movement
+            delay(300)
         }
     }
 }
