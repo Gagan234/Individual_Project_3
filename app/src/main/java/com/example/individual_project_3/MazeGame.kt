@@ -22,7 +22,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 @Composable
-fun MazeGame(context: Context, difficulty: String?) {
+fun MazeGame(context: Context, difficulty: String?, onMainMenu: () -> Unit) {
     val gridSize = when (difficulty?.lowercase()) {
         "easy" -> 5
         "hard" -> 10
@@ -48,8 +48,32 @@ fun MazeGame(context: Context, difficulty: String?) {
         else -> listOf(generateFixedMaze(gridSize, Pair(0, 0), goalPosition, "easy"))
     }
 
+    var isDialogVisible by remember { mutableStateOf(false) }
+    var dialogMessage by remember { mutableStateOf("") }
+    var isFinalGame by remember { mutableStateOf(false) }
+
+    if (isDialogVisible) {
+        ShowCongratsDialog(
+            message = dialogMessage,
+            isVisible = isDialogVisible,
+            onDismiss = { isDialogVisible = false },
+            onNextGame = {
+                isDialogVisible = false
+                if (isFinalGame) {
+                    onMainMenu()
+                } else {
+                    gameIndex.value++
+                    blockPosition = Pair(0, 0)
+                    commands.clear()
+                }
+            },
+            onMainMenu = onMainMenu
+        )
+    }
+
     if (gameIndex.value < mazeList.size) {
         val maze = mazeList[gameIndex.value]
+        isFinalGame = gameIndex.value == mazeList.size - 1
 
         val configuration = LocalConfiguration.current
         val isLandscape = configuration.orientation == 2
@@ -78,17 +102,15 @@ fun MazeGame(context: Context, difficulty: String?) {
                 ) {
                     DropArea(commands)
                     CommandDraggableArea(commands)
-                    ControlButtons(coroutineScope, context, commands, gridSize, blockPosition, maze) { newPos ->
+                    ControlButtons(coroutineScope, commands, gridSize, blockPosition, maze, onMainMenu) { newPos ->
                         blockPosition = newPos
                         if (newPos == goalPosition) {
-                            gameIndex.value++
-                            blockPosition = Pair(0, 0)
-                            commands.clear()
-                            if (gameIndex.value < mazeList.size) {
-                                showCongratsDialog(context, "Congrats! Moving to the next game!")
+                            dialogMessage = if (isFinalGame) {
+                                "Congrats! You completed all games!"
                             } else {
-                                showCongratsDialog(context, "Congrats! You completed all games!")
+                                "Congrats! Moving to the next game!"
                             }
+                            isDialogVisible = true
                         }
                     }
                 }
@@ -105,23 +127,22 @@ fun MazeGame(context: Context, difficulty: String?) {
                 MazeGrid(gridSize, blockPosition, goalPosition, maze)
                 DropArea(commands)
                 CommandDraggableArea(commands)
-                ControlButtons(coroutineScope, context, commands, gridSize, blockPosition, maze) { newPos ->
+                ControlButtons(coroutineScope, commands, gridSize, blockPosition, maze, onMainMenu) { newPos ->
                     blockPosition = newPos
                     if (newPos == goalPosition) {
-                        gameIndex.value++
-                        blockPosition = Pair(0, 0)
-                        commands.clear()
-                        if (gameIndex.value < mazeList.size) {
-                            showCongratsDialog(context, "Congrats! Moving to the next game!")
+                        dialogMessage = if (isFinalGame) {
+                            "Congrats! You completed all games!"
                         } else {
-                            showCongratsDialog(context, "Congrats! You completed all games!")
+                            "Congrats! Moving to the next game!"
                         }
+                        isDialogVisible = true
                     }
                 }
             }
         }
     }
 }
+
 
 @Composable
 fun MazeGrid(gridSize: Int, blockPosition: Pair<Int, Int>, goalPosition: Pair<Int, Int>, maze: Array<Array<Boolean>>) {
@@ -233,11 +254,11 @@ fun DraggableCommand(direction: String, commands: MutableList<String>) {
 @Composable
 fun ControlButtons(
     coroutineScope: CoroutineScope,
-    context: Context,
     commands: MutableList<String>,
     gridSize: Int,
     currentPosition: Pair<Int, Int>,
     maze: Array<Array<Boolean>>,
+    onMainMenu: () -> Unit,
     updatePosition: (Pair<Int, Int>) -> Unit
 ) {
     Column(
@@ -269,6 +290,7 @@ fun ControlButtons(
         }
     }
 }
+
 
 suspend fun executeCommands(
     commands: List<String>,
@@ -375,6 +397,29 @@ fun generateHardMaze3(gridSize: Int): Array<Array<Boolean>> {
     return maze
 }
 
-fun showCongratsDialog(context: Context, message: String) {
-// This function can use AlertDialog to show a message
+@Composable
+fun ShowCongratsDialog(
+    message: String,
+    isVisible: Boolean,
+    onDismiss: () -> Unit,
+    onNextGame: () -> Unit,
+    onMainMenu: () -> Unit
+) {
+    if (isVisible) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("Congratulations!") },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(onClick = onNextGame) {
+                    Text("Next Game")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onMainMenu) {
+                    Text("Main Menu")
+                }
+            }
+        )
+    }
 }

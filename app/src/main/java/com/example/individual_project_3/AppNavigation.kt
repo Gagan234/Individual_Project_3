@@ -25,8 +25,13 @@ fun AppNavigation(navController: NavHostController) {
         }
         composable(route = "game?difficulty={difficulty}") { backStackEntry ->
             val difficulty = backStackEntry.arguments?.getString("difficulty") ?: "Easy"
-            MazeGame(context = LocalContext.current, difficulty = difficulty)
+            MazeGame(
+                context = LocalContext.current,
+                difficulty = difficulty,
+                onMainMenu = { navController.navigate("mainMenu") }
+            )
         }
+
         composable(route = "parentDashboard/{username}") { backStackEntry ->
             ParentDashboard(
                 username = backStackEntry.arguments?.getString("username") ?: "",
