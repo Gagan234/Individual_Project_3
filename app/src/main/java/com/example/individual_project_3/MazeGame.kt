@@ -57,19 +57,21 @@ fun MazeGame(context: Context, difficulty: String?, onMainMenu: () -> Unit) {
             message = dialogMessage,
             isVisible = isDialogVisible,
             onDismiss = { isDialogVisible = false },
-            onNextGame = {
-                isDialogVisible = false
-                if (isFinalGame) {
-                    onMainMenu()
-                } else {
+            onNextGame = if (!isFinalGame) {
+                {
+                    isDialogVisible = false
                     gameIndex.value++
                     blockPosition = Pair(0, 0)
                     commands.clear()
                 }
-            },
-            onMainMenu = onMainMenu
+            } else null,
+            onMainMenu = {
+                isDialogVisible = false
+                onMainMenu()
+            }
         )
     }
+
 
     if (gameIndex.value < mazeList.size) {
         val maze = mazeList[gameIndex.value]
@@ -402,7 +404,7 @@ fun ShowCongratsDialog(
     message: String,
     isVisible: Boolean,
     onDismiss: () -> Unit,
-    onNextGame: () -> Unit,
+    onNextGame: (() -> Unit)? = null,
     onMainMenu: () -> Unit
 ) {
     if (isVisible) {
@@ -411,15 +413,18 @@ fun ShowCongratsDialog(
             title = { Text("Congratulations!") },
             text = { Text(message) },
             confirmButton = {
-                TextButton(onClick = onNextGame) {
-                    Text("Next Game")
+                if (onNextGame != null) {
+                    TextButton(onClick = onNextGame) {
+                        Text("Next Game")
+                    }
                 }
             },
             dismissButton = {
                 TextButton(onClick = onMainMenu) {
-                    Text("Main Menu")
+                    Text(if (onNextGame == null) "Main Menu" else "Go to Main Menu")
                 }
             }
         )
     }
 }
+
