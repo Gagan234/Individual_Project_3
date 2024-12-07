@@ -12,17 +12,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.ui.platform.LocalConfiguration
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -30,123 +23,109 @@ import kotlin.math.roundToInt
 
 @Composable
 fun MazeGame(context: Context, difficulty: String?) {
-    // Set grid size based on difficulty
     val gridSize = when (difficulty?.lowercase()) {
         "easy" -> 5
-        "hard" -> 7
-        else -> 5 // Default to easy if there's an invalid or null input
+        "hard" -> 10
+        else -> 5
     }
-
     var blockPosition by remember { mutableStateOf(Pair(0, 0)) }
     val commands = remember { mutableStateListOf<String>() }
+    val gameIndex = remember { mutableStateOf(0) }
     val goalPosition = Pair(gridSize - 1, gridSize - 1)
-
-    // Predefined Maze with a path
-    val maze = generatePredefinedMaze(gridSize, Pair(0, 0), goalPosition)
-
     val coroutineScope = rememberCoroutineScope()
-    val configuration = LocalConfiguration.current
-    val isLandscape = configuration.orientation == 2 // ORIENTATION_LANDSCAPE = 2
 
-    if (isLandscape) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(8.dp)
-                .verticalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+    val mazeList = when (difficulty?.lowercase()) {
+        "easy" -> listOf(
+            generateFixedMaze(gridSize, Pair(0, 0), goalPosition, "easy"),
+            generateEasyMaze2(gridSize),
+            generateEasyMaze3(gridSize)
+        )
+        "hard" -> listOf(
+            generateFixedMaze(gridSize, Pair(0, 0), goalPosition, "hard"),
+            generateHardMaze2(gridSize),
+            generateHardMaze3(gridSize)
+        )
+        else -> listOf(generateFixedMaze(gridSize, Pair(0, 0), goalPosition, "easy"))
+    }
+
+    if (gameIndex.value < mazeList.size) {
+        val maze = mazeList[gameIndex.value]
+
+        val configuration = LocalConfiguration.current
+        val isLandscape = configuration.orientation == 2
+
+        if (isLandscape) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    MazeGrid(gridSize, blockPosition, goalPosition, maze)
+                }
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    DropArea(commands)
+                    CommandDraggableArea(commands)
+                    ControlButtons(coroutineScope, context, commands, gridSize, blockPosition, maze) { newPos ->
+                        blockPosition = newPos
+                        if (newPos == goalPosition) {
+                            gameIndex.value++
+                            blockPosition = Pair(0, 0)
+                            commands.clear()
+                            if (gameIndex.value < mazeList.size) {
+                                showCongratsDialog(context, "Congrats! Moving to the next game!")
+                            } else {
+                                showCongratsDialog(context, "Congrats! You completed all games!")
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
             Column(
                 modifier = Modifier
-                    .weight(1f)
-                    .padding(end = 8.dp),
+                    .fillMaxSize()
+                    .padding(8.dp)
+                    .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
                 MazeGrid(gridSize, blockPosition, goalPosition, maze)
                 DropArea(commands)
-            }
-
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
                 CommandDraggableArea(commands)
                 ControlButtons(coroutineScope, context, commands, gridSize, blockPosition, maze) { newPos ->
                     blockPosition = newPos
-                }
-            }
-        }
-    } else {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(8.dp)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            MazeGrid(gridSize, blockPosition, goalPosition, maze)
-            DropArea(commands)
-            CommandDraggableArea(commands)
-            ControlButtons(coroutineScope, context, commands, gridSize, blockPosition, maze) { newPos ->
-                blockPosition = newPos
-            }
-        }
-    }
-}
-
-@Composable
-fun ControlButtons(
-    coroutineScope: CoroutineScope,
-    context: Context,
-    commands: MutableList<String>,
-    gridSize: Int,
-    currentPosition: Pair<Int, Int>,
-    maze: Array<Array<Boolean>>,
-    updatePosition: (Pair<Int, Int>) -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Button(
-            onClick = {
-                coroutineScope.launch {
-                    executeCommands(commands, currentPosition, gridSize, maze, updatePosition)
-                    if (currentPosition == Pair(gridSize - 1, gridSize - 1)) {
-                        logProgress(context, "child", 100)
+                    if (newPos == goalPosition) {
+                        gameIndex.value++
+                        blockPosition = Pair(0, 0)
+                        commands.clear()
+                        if (gameIndex.value < mazeList.size) {
+                            showCongratsDialog(context, "Congrats! Moving to the next game!")
+                        } else {
+                            showCongratsDialog(context, "Congrats! You completed all games!")
+                        }
                     }
                 }
-            },
-            modifier = Modifier.fillMaxWidth(0.6f)
-        ) {
-            Text("Run")
-        }
-
-        Button(
-            onClick = {
-                commands.clear()
-                updatePosition(Pair(0, 0))
-            },
-            modifier = Modifier.fillMaxWidth(0.6f)
-        ) {
-            Text("Reset")
+            }
         }
     }
 }
 
 @Composable
 fun MazeGrid(gridSize: Int, blockPosition: Pair<Int, Int>, goalPosition: Pair<Int, Int>, maze: Array<Array<Boolean>>) {
-    val boxSize = if (gridSize == 5) 50.dp else 35.dp
-
+    val boxSize = 30.dp
     Column(
         Modifier
             .background(Color.LightGray)
@@ -157,6 +136,7 @@ fun MazeGrid(gridSize: Int, blockPosition: Pair<Int, Int>, goalPosition: Pair<In
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                 for (x in 0 until gridSize) {
                     val color = when {
+                        blockPosition == Pair(x, y) && goalPosition == Pair(x, y) -> Color.Blue
                         blockPosition == Pair(x, y) -> Color.Blue
                         goalPosition == Pair(x, y) -> Color.Green
                         maze[y][x] -> Color.Black
@@ -166,7 +146,7 @@ fun MazeGrid(gridSize: Int, blockPosition: Pair<Int, Int>, goalPosition: Pair<In
                         Modifier
                             .size(boxSize)
                             .background(color, RoundedCornerShape(4.dp))
-                            .padding(2.dp)
+                            .padding(1.dp)
                     )
                 }
             }
@@ -202,26 +182,20 @@ fun CommandDraggableArea(commands: MutableList<String>) {
             .padding(top = 8.dp),
         horizontalArrangement = Arrangement.SpaceAround
     ) {
-        DraggableCommand(Icons.Default.ArrowUpward, "Up", commands)
-        DraggableCommand(Icons.Default.ArrowDownward, "Down", commands)
-        DraggableCommand(Icons.Default.ArrowBack, "Left", commands)
-        DraggableCommand(Icons.Default.ArrowForward, "Right", commands)
+        DraggableCommand("Up", commands)
+        DraggableCommand("Down", commands)
+        DraggableCommand("Left", commands)
+        DraggableCommand("Right", commands)
     }
 }
 
 @Composable
-fun DraggableCommand(icon: ImageVector, direction: String, commands: MutableList<String>) {
+fun DraggableCommand(direction: String, commands: MutableList<String>) {
     var offsetX by remember { mutableStateOf(0f) }
     var offsetY by remember { mutableStateOf(0f) }
-
     Box(
         Modifier
             .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
-            .graphicsLayer {
-                shadowElevation = 2.dp.toPx()
-            }
-            .background(Color.Cyan, RoundedCornerShape(4.dp))
-            .padding(8.dp)
             .pointerInput(Unit) {
                 detectDragGestures(
                     onDrag = { change, dragAmount ->
@@ -236,8 +210,50 @@ fun DraggableCommand(icon: ImageVector, direction: String, commands: MutableList
                     }
                 )
             }
+            .background(Color.Cyan, RoundedCornerShape(4.dp))
+            .padding(8.dp)
     ) {
-        Icon(imageVector = icon, contentDescription = direction)
+        Text(text = direction, color = Color.Black)
+    }
+}
+
+@Composable
+fun ControlButtons(
+    coroutineScope: CoroutineScope,
+    context: Context,
+    commands: MutableList<String>,
+    gridSize: Int,
+    currentPosition: Pair<Int, Int>,
+    maze: Array<Array<Boolean>>,
+    updatePosition: (Pair<Int, Int>) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Button(
+            onClick = {
+                coroutineScope.launch {
+                    executeCommands(commands, currentPosition, gridSize, maze, updatePosition)
+                }
+            },
+            modifier = Modifier.fillMaxWidth(0.6f)
+        ) {
+            Text("Run")
+        }
+
+        Button(
+            onClick = {
+                commands.clear()
+                updatePosition(Pair(0, 0))
+            },
+            modifier = Modifier.fillMaxWidth(0.6f)
+        ) {
+            Text("Reset")
+        }
     }
 }
 
@@ -251,41 +267,84 @@ suspend fun executeCommands(
     var position = currentPosition
     for (command in commands) {
         val newPosition = when (command) {
-            "Up" -> position.copy(second = (position.second - 1).coerceAtLeast(0))
-            "Down" -> position.copy(second = (position.second + 1).coerceAtMost(gridSize - 1))
-            "Left" -> position.copy(first = (position.first - 1).coerceAtLeast(0))
-            "Right" -> position.copy(first = (position.first + 1).coerceAtMost(gridSize - 1))
+            "Up" -> move(position, -1, 0, gridSize, maze)
+            "Down" -> move(position, 1, 0, gridSize, maze)
+            "Left" -> move(position, 0, -1, gridSize, maze)
+            "Right" -> move(position, 0, 1, gridSize, maze)
             else -> position
         }
-
-        if (!maze[newPosition.second][newPosition.first]) {
-            position = newPosition
-            updatePosition(position)
-            delay(400) // Delay to keep the movement visible
-        }
+        position = newPosition
+        updatePosition(position)
+        delay(800)
     }
 }
 
-fun generatePredefinedMaze(gridSize: Int, start: Pair<Int, Int>, goal: Pair<Int, Int>): Array<Array<Boolean>> {
-    val maze = Array(gridSize) { Array(gridSize) { false } }
-
-    // Create a predefined path from start to goal
-    for (i in 0..goal.second) {
-        maze[i][0] = false // Vertical path
+fun move(
+    position: Pair<Int, Int>,
+    yStep: Int,
+    xStep: Int,
+    gridSize: Int,
+    maze: Array<Array<Boolean>>
+): Pair<Int, Int> {
+    var current = position
+    while (true) {
+        val next = Pair(current.first + xStep, current.second + yStep)
+        if (next.first !in 0 until gridSize || next.second !in 0 until gridSize || maze[next.second][next.first]) {
+            break
+        }
+        current = next
     }
-    for (j in 0..goal.first) {
-        maze[goal.second][j] = false // Horizontal path to goal
+    return current
+}
+
+fun generateFixedMaze(gridSize: Int, start: Pair<Int, Int>, goal: Pair<Int, Int>, difficulty: String?): Array<Array<Boolean>> {
+    val maze = Array(gridSize) { Array(gridSize) { true } }
+    if (difficulty?.lowercase() == "easy") {
+        maze[0][0] = false; maze[0][1] = false; maze[0][2] = false; maze[0][3] = false; maze[0][4] = false
+        maze[1][4] = false; maze[2][4] = false; maze[2][3] = false; maze[3][3] = false; maze[4][3] = false
+    } else {
+        maze[0][0] = false; maze[0][1] = false; maze[0][2] = false
+        maze[1][2] = false; maze[2][2] = false; maze[2][3] = false
+        maze[2][4] = false; maze[3][4] = false; maze[4][4] = false
+        maze[4][5] = false; maze[4][6] = false; maze[5][6] = false
+        maze[6][6] = false; maze[6][7] = false; maze[7][7] = false
+        maze[8][7] = false; maze[8][8] = false; maze[9][8] = false
+        maze[9][9] = false
     }
-
-    // Add obstacles while keeping the path clear
-    maze[1][2] = true
-    maze[2][3] = true
-    maze[3][1] = true
-
     return maze
 }
 
-fun logProgress(context: Context, username: String, progress: Int) {
-    val logFile = context.getFileStreamPath("$username-progress.txt")
-    logFile.appendText("Progress: $progress%\n")
+fun generateEasyMaze2(gridSize: Int): Array<Array<Boolean>> {
+    val maze = Array(gridSize) { Array(gridSize) { true } }
+    maze[0][0] = false; maze[0][1] = false; maze[1][1] = false; maze[2][1] = false; maze[2][2] = false
+    maze[3][2] = false; maze[3][3] = false; maze[4][3] = false; maze[4][4] = false
+    return maze
+}
+
+fun generateEasyMaze3(gridSize: Int): Array<Array<Boolean>> {
+    val maze = Array(gridSize) { Array(gridSize) { true } }
+    maze[0][0] = false; maze[1][0] = false; maze[2][0] = false; maze[2][1] = false; maze[2][2] = false
+    maze[3][2] = false; maze[3][3] = false; maze[4][3] = false; maze[4][4] = false
+    return maze
+}
+
+fun generateHardMaze2(gridSize: Int): Array<Array<Boolean>> {
+    val maze = Array(gridSize) { Array(gridSize) { true } }
+    maze[0][0] = false; maze[1][0] = false; maze[2][0] = false; maze[2][1] = false; maze[3][1] = false
+    maze[3][2] = false; maze[4][2] = false; maze[5][2] = false; maze[5][3] = false; maze[6][3] = false
+    maze[6][4] = false; maze[7][4] = false; maze[8][4] = false; maze[9][4] = false
+    return maze
+}
+
+fun generateHardMaze3(gridSize: Int): Array<Array<Boolean>> {
+    val maze = Array(gridSize) { Array(gridSize) { true } }
+    maze[0][0] = false; maze[0][1] = false; maze[0][2] = false; maze[1][2] = false; maze[2][2] = false
+    maze[3][2] = false; maze[3][3] = false; maze[3][4] = false; maze[4][4] = false; maze[5][4] = false
+    maze[6][4] = false; maze[6][5] = false; maze[6][6] = false; maze[7][6] = false; maze[8][6] = false
+    maze[9][6] = false; maze[9][7] = false; maze[9][8] = false; maze[9][9] = false
+    return maze
+}
+
+fun showCongratsDialog(context: Context, message: String) {
+
 }
