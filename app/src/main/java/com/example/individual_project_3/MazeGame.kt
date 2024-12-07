@@ -154,18 +154,26 @@ fun MazeGrid(gridSize: Int, blockPosition: Pair<Int, Int>, goalPosition: Pair<In
     }
 }
 
+
 @Composable
 fun DropArea(commands: MutableList<String>) {
+    val scrollState = rememberScrollState()
+    LaunchedEffect(commands.size) {
+        // Automatically scroll to the bottom when a new command is added
+        scrollState.animateScrollTo(scrollState.maxValue)
+    }
+
     Box(
         Modifier
             .fillMaxWidth()
-            .height(80.dp)
+            .height(150.dp) // Increased height to accommodate more commands
             .background(Color.LightGray, RoundedCornerShape(8.dp))
             .padding(8.dp)
+            .verticalScroll(scrollState) // Enable scrolling
     ) {
         Column {
             Text("Drop Commands Here", modifier = Modifier.align(Alignment.CenterHorizontally))
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) { // Stack commands vertically
                 commands.forEach {
                     Text(it, modifier = Modifier.padding(4.dp))
                 }
@@ -173,6 +181,11 @@ fun DropArea(commands: MutableList<String>) {
         }
     }
 }
+
+
+
+
+
 
 @Composable
 fun CommandDraggableArea(commands: MutableList<String>) {
@@ -266,20 +279,32 @@ suspend fun executeCommands(
 ) {
     var position = currentPosition
     for (command in commands) {
-        val newPosition = when (command) {
-            "Up" -> move(position, -1, 0, gridSize, maze)
-            "Down" -> move(position, 1, 0, gridSize, maze)
-            "Left" -> move(position, 0, -1, gridSize, maze)
-            "Right" -> move(position, 0, 1, gridSize, maze)
-            else -> position
+        val direction = when (command) {
+            "Up" -> Pair(-1, 0)
+            "Down" -> Pair(1, 0)
+            "Left" -> Pair(0, -1)
+            "Right" -> Pair(0, 1)
+            else -> Pair(0, 0)
         }
-        position = newPosition
-        updatePosition(position)
-        delay(800)
+
+        while (true) {
+            val nextPosition = Pair(position.first + direction.second, position.second + direction.first)
+            if (
+                nextPosition.first !in 0 until gridSize ||
+                nextPosition.second !in 0 until gridSize ||
+                maze[nextPosition.second][nextPosition.first]
+            ) {
+                break
+            }
+
+            position = nextPosition
+            updatePosition(position)
+            delay(300) // Adjust the delay for slower or faster movement
+        }
     }
 }
 
-fun move(
+fun moveUntilBoundary(
     position: Pair<Int, Int>,
     yStep: Int,
     xStep: Int,
@@ -297,11 +322,14 @@ fun move(
     return current
 }
 
+
+
+
 fun generateFixedMaze(gridSize: Int, start: Pair<Int, Int>, goal: Pair<Int, Int>, difficulty: String?): Array<Array<Boolean>> {
     val maze = Array(gridSize) { Array(gridSize) { true } }
     if (difficulty?.lowercase() == "easy") {
         maze[0][0] = false; maze[0][1] = false; maze[0][2] = false; maze[0][3] = false; maze[0][4] = false
-        maze[1][4] = false; maze[2][4] = false; maze[2][3] = false; maze[3][3] = false; maze[4][3] = false
+        maze[1][4] = false; maze[2][4] = false; maze[3][4] = false; maze[4][4] = false
     } else {
         maze[0][0] = false; maze[0][1] = false; maze[0][2] = false
         maze[1][2] = false; maze[2][2] = false; maze[2][3] = false
@@ -330,11 +358,13 @@ fun generateEasyMaze3(gridSize: Int): Array<Array<Boolean>> {
 
 fun generateHardMaze2(gridSize: Int): Array<Array<Boolean>> {
     val maze = Array(gridSize) { Array(gridSize) { true } }
-    maze[0][0] = false; maze[1][0] = false; maze[2][0] = false; maze[2][1] = false; maze[3][1] = false
-    maze[3][2] = false; maze[4][2] = false; maze[5][2] = false; maze[5][3] = false; maze[6][3] = false
-    maze[6][4] = false; maze[7][4] = false; maze[8][4] = false; maze[9][4] = false
+    maze[0][0] = false; maze[1][0] = false; maze[2][0] = false; maze[3][0] = false; maze[4][0] = false
+    maze[4][1] = false; maze[4][2] = false; maze[4][3] = false; maze[5][3] = false; maze[6][3] = false
+    maze[6][4] = false; maze[7][4] = false; maze[8][4] = false; maze[9][4] = false; maze[9][5] = false
+    maze[9][6] = false; maze[9][7] = false; maze[9][8] = false; maze[9][9] = false
     return maze
 }
+
 
 fun generateHardMaze3(gridSize: Int): Array<Array<Boolean>> {
     val maze = Array(gridSize) { Array(gridSize) { true } }
@@ -346,5 +376,5 @@ fun generateHardMaze3(gridSize: Int): Array<Array<Boolean>> {
 }
 
 fun showCongratsDialog(context: Context, message: String) {
-
+// This function can use AlertDialog to show a message
 }
